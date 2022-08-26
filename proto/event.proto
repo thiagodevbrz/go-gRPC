@@ -8,10 +8,22 @@ message Event {
     string message = 2;
 }
 
+message EventResultStream {
+    string status = 1;
+    Event event = 2;
+}
+
 message HandleEventResponse {
-    string message = 1;
+    string status = 1;
+}
+
+message Events {
+    repeated Event event = 1;
 }
 
 service EventService {
-    rpc handleEvent (Event) returns (HandleEventResponse);
+    rpc HandleEvent (Event) returns (HandleEventResponse);
+    rpc HandleDetailedEvent (Event) returns ( stream HandleEventResponse);
+    rpc ClientStream(stream Event) returns (Events);
+    rpc BidirectionalEventStream (stream Event) returns (stream HandleEventResponse);
 }

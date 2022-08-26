@@ -23,6 +23,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EventServiceClient interface {
 	HandleEvent(ctx context.Context, in *Event, opts ...grpc.CallOption) (*HandleEventResponse, error)
+	HandleDetailedEvent(ctx context.Context, in *Event, opts ...grpc.CallOption) (EventService_HandleDetailedEventClient, error)
+	ClientStream(ctx context.Context, opts ...grpc.CallOption) (EventService_ClientStreamClient, error)
+	BidirectionalEventStream(ctx context.Context, opts ...grpc.CallOption) (EventService_BidirectionalEventStreamClient, error)
 }
 
 type eventServiceClient struct {
@@ -35,11 +38,108 @@ func NewEventServiceClient(cc grpc.ClientConnInterface) EventServiceClient {
 
 func (c *eventServiceClient) HandleEvent(ctx context.Context, in *Event, opts ...grpc.CallOption) (*HandleEventResponse, error) {
 	out := new(HandleEventResponse)
-	err := c.cc.Invoke(ctx, "/pb.EventService/handleEvent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/pb.EventService/HandleEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c *eventServiceClient) HandleDetailedEvent(ctx context.Context, in *Event, opts ...grpc.CallOption) (EventService_HandleDetailedEventClient, error) {
+	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[0], "/pb.EventService/HandleDetailedEvent", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &eventServiceHandleDetailedEventClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type EventService_HandleDetailedEventClient interface {
+	Recv() (*HandleEventResponse, error)
+	grpc.ClientStream
+}
+
+type eventServiceHandleDetailedEventClient struct {
+	grpc.ClientStream
+}
+
+func (x *eventServiceHandleDetailedEventClient) Recv() (*HandleEventResponse, error) {
+	m := new(HandleEventResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *eventServiceClient) ClientStream(ctx context.Context, opts ...grpc.CallOption) (EventService_ClientStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[1], "/pb.EventService/ClientStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &eventServiceClientStreamClient{stream}
+	return x, nil
+}
+
+type EventService_ClientStreamClient interface {
+	Send(*Event) error
+	CloseAndRecv() (*Events, error)
+	grpc.ClientStream
+}
+
+type eventServiceClientStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *eventServiceClientStreamClient) Send(m *Event) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *eventServiceClientStreamClient) CloseAndRecv() (*Events, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Events)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *eventServiceClient) BidirectionalEventStream(ctx context.Context, opts ...grpc.CallOption) (EventService_BidirectionalEventStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[2], "/pb.EventService/BidirectionalEventStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &eventServiceBidirectionalEventStreamClient{stream}
+	return x, nil
+}
+
+type EventService_BidirectionalEventStreamClient interface {
+	Send(*Event) error
+	Recv() (*HandleEventResponse, error)
+	grpc.ClientStream
+}
+
+type eventServiceBidirectionalEventStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *eventServiceBidirectionalEventStreamClient) Send(m *Event) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *eventServiceBidirectionalEventStreamClient) Recv() (*HandleEventResponse, error) {
+	m := new(HandleEventResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // EventServiceServer is the server API for EventService service.
@@ -47,6 +147,9 @@ func (c *eventServiceClient) HandleEvent(ctx context.Context, in *Event, opts ..
 // for forward compatibility
 type EventServiceServer interface {
 	HandleEvent(context.Context, *Event) (*HandleEventResponse, error)
+	HandleDetailedEvent(*Event, EventService_HandleDetailedEventServer) error
+	ClientStream(EventService_ClientStreamServer) error
+	BidirectionalEventStream(EventService_BidirectionalEventStreamServer) error
 	mustEmbedUnimplementedEventServiceServer()
 }
 
@@ -56,6 +159,15 @@ type UnimplementedEventServiceServer struct {
 
 func (UnimplementedEventServiceServer) HandleEvent(context.Context, *Event) (*HandleEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HandleEvent not implemented")
+}
+func (UnimplementedEventServiceServer) HandleDetailedEvent(*Event, EventService_HandleDetailedEventServer) error {
+	return status.Errorf(codes.Unimplemented, "method HandleDetailedEvent not implemented")
+}
+func (UnimplementedEventServiceServer) ClientStream(EventService_ClientStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method ClientStream not implemented")
+}
+func (UnimplementedEventServiceServer) BidirectionalEventStream(EventService_BidirectionalEventStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method BidirectionalEventStream not implemented")
 }
 func (UnimplementedEventServiceServer) mustEmbedUnimplementedEventServiceServer() {}
 
@@ -80,12 +192,85 @@ func _EventService_HandleEvent_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/pb.EventService/handleEvent",
+		FullMethod: "/pb.EventService/HandleEvent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventServiceServer).HandleEvent(ctx, req.(*Event))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _EventService_HandleDetailedEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Event)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(EventServiceServer).HandleDetailedEvent(m, &eventServiceHandleDetailedEventServer{stream})
+}
+
+type EventService_HandleDetailedEventServer interface {
+	Send(*HandleEventResponse) error
+	grpc.ServerStream
+}
+
+type eventServiceHandleDetailedEventServer struct {
+	grpc.ServerStream
+}
+
+func (x *eventServiceHandleDetailedEventServer) Send(m *HandleEventResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _EventService_ClientStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(EventServiceServer).ClientStream(&eventServiceClientStreamServer{stream})
+}
+
+type EventService_ClientStreamServer interface {
+	SendAndClose(*Events) error
+	Recv() (*Event, error)
+	grpc.ServerStream
+}
+
+type eventServiceClientStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *eventServiceClientStreamServer) SendAndClose(m *Events) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *eventServiceClientStreamServer) Recv() (*Event, error) {
+	m := new(Event)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _EventService_BidirectionalEventStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(EventServiceServer).BidirectionalEventStream(&eventServiceBidirectionalEventStreamServer{stream})
+}
+
+type EventService_BidirectionalEventStreamServer interface {
+	Send(*HandleEventResponse) error
+	Recv() (*Event, error)
+	grpc.ServerStream
+}
+
+type eventServiceBidirectionalEventStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *eventServiceBidirectionalEventStreamServer) Send(m *HandleEventResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *eventServiceBidirectionalEventStreamServer) Recv() (*Event, error) {
+	m := new(Event)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // EventService_ServiceDesc is the grpc.ServiceDesc for EventService service.
@@ -96,10 +281,27 @@ var EventService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*EventServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "handleEvent",
+			MethodName: "HandleEvent",
 			Handler:    _EventService_HandleEvent_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "HandleDetailedEvent",
+			Handler:       _EventService_HandleDetailedEvent_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ClientStream",
+			Handler:       _EventService_ClientStream_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "BidirectionalEventStream",
+			Handler:       _EventService_BidirectionalEventStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "event.proto",
 }
